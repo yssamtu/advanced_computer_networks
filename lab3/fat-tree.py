@@ -37,11 +37,31 @@ class FattreeNet(Topo):
 	"""
 
 	def __init__(self, ft_topo):
-		
+		self.ft_topo = ft_topo
 		Topo.__init__(self)
+		
 
-		# TODO: please complete the network generation logic here
+	def build(self):
+		for switch in self.ft_topo.switches:
+			self.addSwitch(switch.id)
+		for host in self.ft_topo.servers:
+			self.addHost(host.id, ip=f"{host.ip_addr}/8")
+			
+		for switch in self.ft_topo.switches:
+			for edge in switch.edges:
+				if edge.lnode.id == switch.id:
+					s1 = edge.lnode
+					s2 = edge.rnode
+				else:
+					s1 = edge.rnode
+					s2 = edge.lnode
+				# only add lower link
+				if (s1.type == "as") and (s2.type == "cs"):
+					continue
+				elif (s1.type == "es") and (s2.type == "as"):
+					continue
 
+				self.addLink(s1.id, s2.id, bw=15, delay='5ms')
 
 def make_mininet_instance(graph_topo):
 
