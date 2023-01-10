@@ -2,5 +2,26 @@
   "target": "bmv2",
   "p4info": "build/streaming.p4.p4info.txt",
   "bmv2_json": "build/streaming.json",
-  "table_entries": []
+  "table_entries": [
+    {
+      "table": "MyIngress.ipv4_lpm",
+      "match": {
+        "hdr.ipv4.dstAddr": ["10.0.7.7", 32]
+      },
+      "action_name": "MyIngress.intercept",
+      "action_params": {
+        "dstMacAddr": "08:00:00:00:03:33",
+        "dstIpAddr": "10.0.3.3",
+        "port": 1
+      }
+    },
+    {
+      "table": "MyEgress.udp_checksum",
+      "match": {
+        "hdr.ipv4.dstAddr": ["10.0.3.3", 32]
+      },
+      "action_name": "MyEgress.udp_checksum_to_zero",
+      "action_params": {}
+    }
+  ]
 }

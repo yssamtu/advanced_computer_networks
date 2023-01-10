@@ -60,9 +60,9 @@ Vrije Universiteit Amsterdam  \\ Lin Wang, George Karlos, Florian Gerlinghoff\\
 % Please modify this part with your group information
 \begin{tcolorbox}[sharp corners, colback=blue!5!white]
 \begin{tabular}{@{}ll}
-\textbf{Group number:} & <your group number on Canvas> \\
-\textbf{Group members:} & <names of group members> \\
-\textbf{Slip days used:} & <number of slip days used> \\
+\textbf{Group number:} & 9 \\
+\textbf{Group members:} & Hsiang-ling Tai, Yung-sheng Tu, Sicheng Peng \\
+\textbf{Slip days used:} & 0 \\
 \end{tabular}
 \end{tcolorbox}
 
@@ -71,21 +71,51 @@ Vrije Universiteit Amsterdam  \\ Lin Wang, George Karlos, Florian Gerlinghoff\\
 % Please do not remove any of the section headings below
 
 \section{Implementing an IPv4 Router in P4}
-
+\begin{itemize}
+    \item routing.p4
+    \begin{itemize}
+        \item Header and parser block \\
+        We first defined packet headers including \textbf{Ethernet} and \textbf{IPv4} headers and the corresponding parsers, which would start at parsing the Ethernet header, and then transition to parsing the IPv4 header.
+        \item Control ingress block \\
+        In MyIngress, we created a table named \textbf{ipv4\_lpm}. Its key is the destination IPv4 address. Its actions are forwarding a packet and dropping a packet.  In forwarding packet action, a packet would be forwarded to a specific egress port and also set up its destination MAC address.  The default action is to drop the packet, which literally means it would drop the packet when coming to the switch.
+        \item Control compute checksum block \\
+        Update the checksum of IPv4 packet.
+        \item De-parser block \\
+        Emit Ethernet and IPv4 header when de-parsing.
+    \end{itemize}
+    \item s*-runtime.json \\
+    Insert the table entries of all paths.  For example, in s1-runtime.json, insert three table entries in the above-mentioned ipv4\_lpm table.  The first entry's match is "10.0.1.1", the action is to set the destination MAC Address to "08:00:00:00:01:11" and then forward to port 1.  The second entry's match is "10.0.2.2", the action is to set the destination MAC to "08:00:00:00:02:22" and then forward to port 2.  The third entry's match is "10.0.3.3", the action is to set the destination MAC to "08:00:00:00:03:33" and then forward to port 3.  The same idea goes for s2-runtime.json and s3-runtime.json.
+\end{itemize} 
 % Start your writing here, feel free to include subsections to structure your report if needed
 % Please remove the note below in your submission
-\note{Please explain the high-level idea, as well as important details in your implementation.}
+
 
 \section{Intercepting RTP Video Streaming with P4}
+\subsection{Shortest path between h1 and h7}
+    \begin{itemize}
+        \item s*-runtime.json \\
+        Set up the table entries on routers according to the manual calculation. \\
+        The path is $h1 \rightarrow s1 \rightarrow s2 \rightarrow s5 \rightarrow s7 \rightarrow h7$.
+    \end{itemize}
+\subsection{Intercept the traffic from h3}
+    \begin{itemize}
+        \item Multicast on s2 \\
+        The basic routing scheme is the same in the aforementioned routing.p4.  The difference is that we added an \textbf{multicast action} in the MyIngress.ipv4\_lpm table, which would multicast the packet to the group of ports.  That is to say, in s2-runtime.json, we added the entry that matches on IP Address "10.0.7.7", which implies the streaming packet to h7, and the action is to multicast the packet to port 2 and port 3, so the s3 and s5 would get the same packets.
+        \item Change destination address on s3 \\
+        On s3, it would get the packet that its destination IP Address is "10.0.7.7", which implies the packet is the streaming packet to h7.  So we added another action named intercept in MyIngress.ipv4\_lpm.  It would first change IP Address to a specific IP Address and then do the ipv4\_forward action as normal.  That is to say, in s3-runtime.json, match on "10.0.7.7", and change IP Address to "10.0.3.3", MAC Address to "08:00:00:00:03:33", and forward to port 1.
+        \item Update UDP checksum to zero \\
+        Because we have modified the IP Address and Mac Address, the UDP checksum would not match.  Fortunately, if the UDP checksum is set to zero indicating unused.  So, in MyEgress we added the table which key is to match on IPv4 destination address, and the action is to set the UDP checksum to zero.  That is to say, in s3-runtime.json, match the IPv4 address "10.0.3.3", and then set the matched UDP packet's checksum to zero.
+    \end{itemize}
 
 % Start your writing here, feel free to include subsections to structure your report if needed
 % Please remove the note below in your submission
-\note{Please explain the high-level idea, as well as important details in your implementation.}
 
 \section{References}
-
-% Start your writing here, please remove the note below in your submission
-\note{Include your references if any; otherwise remove this section.}
-
+\begin{itemize}
+    \item \href{https://github.com/knetsolutions/p4-tutorials}{https://github.com/knetsolutions/p4-tutorials}
+    \item \href{https://github.com/p4lang/tutorials}{https://github.com/p4lang/tutorials}
+    \item \href{https://en.wikipedia.org/wiki/User\_Datagram\_Protocol}{https://en.wikipedia.org/wiki/User\_Datagram\_Protocol}
+    \item \href{https://www.rfc-editor.org/rfc/rfc791}{https://www.rfc-editor.org/rfc/rfc791}
+\end{itemize}
 
 \end{document}
