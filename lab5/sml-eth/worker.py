@@ -1,16 +1,32 @@
-from lib.gen import GenInts, GenMultipleOfInRange
-from lib.test import CreateTestData, RunIntTest
-from lib.worker import *
+from scapy.all import get_if_hwaddr
 from scapy.all import Packet
+from scapy.fields import ByteField
+from scapy.layers.l2 import Ether
+from scapy.packet import Raw
+from scapy.sendrecv import srp
+from struct import pack
+from struct import iter_unpack
+from lib.gen import GenInts
+from lib.gen import GenMultipleOfInRange
+from lib.test import CreateTestData
+from lib.test import RunIntTest
+from lib.worker import GetRankOrExit
+from lib.worker import Log
+from config import NUM_WORKERS
 
-NUM_ITER   = 1     # TODO: Make sure your program can handle larger values
-CHUNK_SIZE = None  # TODO: Define me
+NUM_ITER = 1
+CHUNK_SIZE = 32
+MAC_ADDR = get_if_hwaddr("eth0")
+ETH_TYPE = 0x8787
+
 
 class SwitchML(Packet):
     name = "SwitchMLPacket"
     fields_desc = [
-        # TODO: Implement me
+        ByteField("rank", 0),
+        ByteField("num_workers", 1)
     ]
+
 
 def AllReduce(iface, rank, data, result):
     """
@@ -23,21 +39,41 @@ def AllReduce(iface, rank, data, result):
 
     This function is blocking, i.e. only returns with a result or error
     """
-    # TODO: Implement me
-    pass
+    for i in range(len(data) // CHUNK_SIZE):
+        payload = bytearray()
+        for num in data[CHUNK_SIZE*i:CHUNK_SIZE*(i+1)]:
+            payload.extend(pack("!I", num))
+
+        pkt_snd = (
+            Ether(src=MAC_ADDR, type=ETH_TYPE) /
+            SwitchML(rank=rank, num_workers=NUM_WORKERS) /
+            Raw(payload)
+        )
+        pkt_rcv, _ = srp(x=pkt_snd, iface=iface)
+        byte_data = SwitchML(pkt_rcv.res[0][1].payload).payload.load
+        for j, num in enumerate(iter_unpack("!I", byte_data)):
+            result[i * CHUNK_SIZE + j] = num[0]
+
 
 def main():
-    iface = 'eth0'
+    iface = "eth0"
+    # id
     rank = GetRankOrExit()
     Log("Started...")
+    # image this is model training loop
     for i in range(NUM_ITER):
-        num_elem = GenMultipleOfInRange(2, 2048, 2 * CHUNK_SIZE) # You may want to 'fix' num_elem for debugging
+        num_elem = GenMultipleOfInRange(2, 2048, 2 * CHUNK_SIZE)
+        # the data generate in local
         data_out = GenInts(num_elem)
+        # the result of data would receive after call the reduce
         data_in = GenInts(num_elem, 0)
-        CreateTestData("eth-iter-%d" % i, rank, data_out)
+        # test on data can ignore now
+        CreateTestData(f"eth-iter-{i}", rank, data_out)
+        # do all reduce and then get the result (data_out)
         AllReduce(iface, rank, data_out, data_in)
-        RunIntTest("eth-iter-%d" % i, rank, data_in, True)
+        RunIntTest(f"eth-iter-{i}", rank, data_in, True)
     Log("Done")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
